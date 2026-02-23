@@ -1,119 +1,166 @@
 ﻿using System;
 using System.Text;
 
+// Класс GameController отвечает за пользовательский интерфейс (меню консоли) 
+// и общее управление процессом игры (подсчет статистики, запуск раундов).
 public class GameController
 {
+    // Переменные для хранения статистики: количество побед и поражений.
+    // Они объявлены на уровне класса, чтобы не сбрасываться после каждого раунда.
     private int winCount = 0;
     private int lossCount = 0;
+    
+    // Интерфейс для получения загадываемого слова и подсказки. 
+    // Использование интерфейса позволяет легко менять источники слов (например, брать их из файла или БД).
     private IWordProvider wordProvider;
 
+    // Конструктор класса. Вызывается один раз при старте программы.
     public GameController()
     {
-
+        // Инициализируем поставщика слов. В данном случае используем статический класс 
+        // (скорее всего, там просто зашит массив слов в самом коде).
         wordProvider = new StaticWordProvider();
     }
 
-
+    // Основной метод, который запускает главное меню игры
     public void Start()
     {
+        // Устанавливаем кодировку UTF-8 для вывода в консоль.
+        // Это нужно, чтобы украинские буквы (і, ї, є) и эмодзи (сердечки) отображались корректно.
         Console.OutputEncoding = Encoding.UTF8;
 
+        // Бесконечный цикл, который постоянно держит меню открытым, пока игрок не выберет "Вихід"
         while (true)
         {
-            Console.Clear();
+            Console.Clear(); // Очищаем экран консоли от старого текста
+            
+            // Рисуем главное меню
             Console.WriteLine("=== Menu ===");
             Console.WriteLine("1 - Грати");
             Console.WriteLine("2 - Статистика");
             Console.WriteLine("3 - Вихід");
             Console.WriteLine("====================");
 
-
+            // Считываем выбор пользователя (строку, которую он ввел)
             string menuChoice = Console.ReadLine();
 
+            // Проверяем, что ввел пользователь, с помощью конструкции switch
             switch (menuChoice)
             {
                 case "1":
-                    PlayGameRound();
+                    PlayGameRound(); // Если "1" - запускаем один раунд игры
                     break;
                 case "2":
-                    ShowStatistics();
+                    ShowStatistics(); // Если "2" - переходим в окно статистики
                     break;
                 case "3":
+                    // Если "3" - прощаемся и выходим из метода (цикл прерывается, программа закрывается)
                     Console.WriteLine("\nДякую за гру!");
-                    return;
+                    return; 
                 default:
+                    // Защита "от дурака": если ввели буквы или другие цифры
                     Console.WriteLine("\nНевірний вибір. Натисніть будь-яку клавішу...");
-                    Console.ReadKey();
+                    Console.ReadKey(); // Ждем нажатия кнопки, чтобы игрок успел прочитать ошибку
                     break;
             }
         }
     }
 
+    // Метод, отвечающий за логику одного игрового раунда
     private void PlayGameRound()
     {
+        // Запрашиваем случайное секретное слово и подсказку к нему
         string secret = wordProvider.GetWord();
         string hint = wordProvider.GetHint();
 
-        int maxAttempts = 7;
+        int maxAttempts = 7; // Устанавливаем количество "жизней" (допустимых ошибок)
+        
+        // Создаем экземпляр логики игры, передавая ей слово и жизни
         HangmanGame game = new HangmanGame(secret, maxAttempts);
 
+        // Игровой цикл: повторяется до тех пор, пока игра не перейдет в статус "Окончена"
+        // (game.IsGameOver() вернет true, если кончились жизни ИЛИ слово отгадано)
         while (!game.IsGameOver())
         {
-            Console.Clear();
+            Console.Clear(); // Очищаем экран перед каждым новым вводом буквы
+            
             Console.WriteLine("=== HANGMAN ===");
-            Console.WriteLine($"ПІДКАЗКА: {hint}");
+            Console.WriteLine($"ПІДКАЗКА: {hint}"); // Выводим подсказку
             Console.WriteLine("---------------------------------");
 
+            // Выводим зашифрованное слово (например, "_ a _ a _ a")
             Console.WriteLine($"Прогрес: {game.GetProgressString()}");
 
+            // Выводим текстовый счетчик жизней (например, "Життя : 5 / 7")
             Console.WriteLine($"Життя : {game.AttemptsLeft} / {maxAttempts}");
+            
+            // Визуализируем жизни с помощью цикла, печатая сердечки в одну строку (Console.Write)
             for (int i = 0; i < game.AttemptsLeft; i++)
             {
                 Console.Write("❤ ");
             }
             Console.WriteLine("\n---------------------------------");
 
+            // Просим игрока ввести букву
             Console.Write("Введіть літеру: ");
 
+            // Читаем ввод с клавиатуры
             string input = Console.ReadLine();
+            
+            // Тернарный оператор для защиты от пустого ввода (если нажали просто Enter).
+            // Если ввели хотя бы 1 символ, берем первый (индекс 0), иначе используем пробел.
             char guess = (input != null && input.Length > 0) ? input[0] : ' ';
 
+            // Отправляем введенную букву в ядро игры. Игра сама решит, отнять жизнь или открыть букву.
             game.MakeGuess(guess);
         }
 
+        // --- Блок подведения итогов раунда (сюда попадаем, когда цикл while закончился) ---
         Console.Clear();
         Console.WriteLine("=== РЕЗУЛЬТАТ ГРИ ===");
         Console.WriteLine($"Фінальний прогрес: {game.GetProgressString()}");
 
+        // Проверяем, почему закончилась игра. Если метод IsWon() вернул true — это победа.
         if (game.IsWon())
         {
             Console.WriteLine("\n[Win] Ви відгадали слово!");
-            winCount++;
+            winCount++; // Плюсуем счетчик побед для статистики
         }
-        else
+        else // Иначе — жизни закончились, это поражение
         {
+            // Показываем игроку слово, которое он не смог угадать
             Console.WriteLine($"\n[Lose] Спроби закінчилися. Загадане слово: {game.GetSecretWord()}");
-            lossCount++;
+            lossCount++; // Плюсуем счетчик поражений
         }
 
+        // Делаем паузу, чтобы игрок мог посмотреть результат, прежде чем его выкинет обратно в меню
         Console.WriteLine("\nНатисніть будь-яку клавішу, щоб повернутися до меню...");
         Console.ReadKey();
     }
 
+    // Метод для отображения экрана статистики
     private void ShowStatistics()
     {
         Console.Clear();
         Console.WriteLine("=== СТАТИСТИКА ===");
+        
+        // Выводим накопленные данные
         Console.WriteLine($"Перемоги: {winCount}");
         Console.WriteLine($"Поразки:  {lossCount}");
 
+        // Считаем общее количество сыгранных раундов
         int totalGames = winCount + lossCount;
+        
+        // Защита от деления на ноль (если игрок зашел в статистику до первой игры)
         if (totalGames > 0)
         {
+            // Вычисляем процент побед. Сначала умножаем на 100, чтобы при целочисленном делении
+            // не получить 0 (например, если побед 1, а игр 3 -> 1/3 = 0.33 -> в int это 0).
             int winRate = (winCount * 100) / totalGames;
             Console.WriteLine($"Відсоток перемог: {winRate}%");
         }
 
+        // Пауза перед возвратом в главное меню
         Console.WriteLine("==================");
         Console.WriteLine("Натисніть будь-яку клавішу для повернення...");
         Console.ReadKey();
